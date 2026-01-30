@@ -1,7 +1,8 @@
 version: '3.8'
 
 services:
-  mysqldb:
+  # 1. DATABASE
+  db:
     image: mysql:8.0
     restart: always
     environment:
@@ -11,3 +12,42 @@ services:
       MYSQL_PASSWORD: password
     ports:
       - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+  # 2. DATA SERVICE (Layer 1)
+  data-service:
+    build: ./services/data-service
+    ports: ["3001:3001"]
+    environment:
+      DB_HOST: db
+      DB_USER: user
+      DB_PASS: password
+      DB_NAME: medical_db
+    depends_on:
+      - db
+
+  # 3. ADAPTER SERVICE (Layer 2)
+  adapter-service:
+    build: ./services/adapter-service
+    ports: ["3002:3002"]
+    environment:
+      EMAIL_USER: "sde.project.omar.bonfanti@gmail.com"  # Metti la tua vera mail qui o nel .env
+      EMAIL_PASS: "fkshiqnvbjlxkvqg"     
+  
+  # 4. BUSINESS SERVICE (Layer 3)
+  business-service:
+    build: ./services/business-service
+    ports: ["3003:3003"]
+
+  # 5. PROCESS SERVICE (Layer 4 - Gateway)
+  process-service:
+    build: ./services/process-service
+    ports: ["3000:3000"]
+    depends_on:
+      - data-service
+      - adapter-service
+      - business-service
+
+volumes:
+  db_data:

@@ -207,7 +207,7 @@ function searchSuggestions(value) {
   loadingSuggestions.value = true
 
   api
-    .get(`http://localhost:3000/api/autocomplete?text=${value}`)
+    .get(`http://127.0.0.1:3000/api/autocomplete?text=${value}`)
     .then((response) => {
       suggestionList.value = response.data
       showMenu.value = suggestionList.value.length > 0
@@ -230,8 +230,9 @@ function getCurrentPosition() {
     async (position) => {
       const lat = position.coords.latitude
       const lng = position.coords.longitude
+
       try {
-        const response = await api.get(`http://localhost:3000/api/reverse?lat=${lat}&lng=${lng}`)
+        const response = await api.get(`http://127.0.0.1:3000/api/reverse?lat=${lat}&lng=${lng}`)
         if (response.data && response.data.address) {
           addressText.value = response.data.address
           $q.notify({ type: 'positive', message: 'Position found!' })
@@ -267,7 +268,7 @@ async function searchDoctors() {
 
   try {
     // Send ALL data to the backend
-    const response = await api.post('http://localhost:3000/api/search', {
+    const response = await api.post('http://127.0.0.1:3000/api/search', {
       address: addressText.value,
       radius: km.value,
       dateStart: dateFrom.value,
