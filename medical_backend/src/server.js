@@ -17,10 +17,11 @@ const result = dotenv.config({ path: path.resolve(__dirname, "../.env") });
 // DB Configuration
 // should match your Docker setup
 const dbConfig = {
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "user",
+  password: process.env.DB_PASS || "password",
+  database: process.env.DB_NAME || "medical_db",
+  port: process.env.DB_PORT || 3306,
 };
 
 // Distance Helper Function (to be placed outside the route, or at the end of the file)

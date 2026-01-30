@@ -230,6 +230,7 @@ function getCurrentPosition() {
     async (position) => {
       const lat = position.coords.latitude
       const lng = position.coords.longitude
+
       try {
         const response = await api.get(`http://localhost:3000/api/reverse?lat=${lat}&lng=${lng}`)
         if (response.data && response.data.address) {

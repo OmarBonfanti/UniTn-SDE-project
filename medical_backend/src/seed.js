@@ -7,82 +7,106 @@ const dbConfig = {
   user: process.env.DB_USER || "user",
   password: process.env.DB_PASS || "password",
   database: process.env.DB_NAME || "medical_db",
+  port: process.env.DB_PORT || 3307,
 };
 
 async function seed() {
   let connection;
   try {
-    console.log("🌱 Connection to the database...");
+    console.log("------------------------------------------------");
+    console.log("🌱 Start SEED - Connecting to DB...");
+    console.log(`   Host: ${dbConfig.host}:${dbConfig.port}`);
+
     connection = await mysql.createConnection(dbConfig);
     console.log("✅ Connection SUCCESSFUL!");
+    // --- 1. CREATE STRUCTURE (DDL) ---
+    console.log("🏗️  Creating/Resetting Tables...");
 
-    // TOTAL CLEANUP (Turn off checks to delete without errors)
-    console.log("🧹 Deleting existing data...");
+    // Disable foreign key checks to allow dropping tables without errors
     await connection.query("SET FOREIGN_KEY_CHECKS = 0");
-    await connection.query("TRUNCATE TABLE slots");
-    await connection.query("TRUNCATE TABLE doctors");
-    await connection.query("TRUNCATE TABLE clinics");
-    await connection.query("SET FOREIGN_KEY_CHECKS = 1");
 
-    // CLINICS (Inserting IDs manually!)
-    console.log("🏥 Inserting Clinics (with forced IDs)...");
-    // Note: Added 'id' in the insert
+    // Drop old tables if they exist
+    await connection.query("DROP TABLE IF EXISTS slots");
+    await connection.query("DROP TABLE IF EXISTS doctors");
+    await connection.query("DROP TABLE IF EXISTS clinics");
+
+    // CREATE TABLE CLINICS
+    await connection.query(`
+            CREATE TABLE clinics (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                address VARCHAR(255),
+                city VARCHAR(255),
+                lat FLOAT,
+                lng FLOAT
+            )
+        `);
+
+    // CREATE TABLE DOCTORS (Without specialty, as requested)
+    await connection.query(`
+            CREATE TABLE doctors (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                surname VARCHAR(255) NOT NULL,
+                clinic_id INT,
+                FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
+            )
+        `);
+
+    // CREATE TABLE SLOTS (APPOINTMENTS)
+    await connection.query(`
+            CREATE TABLE slots (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                date_start DATETIME NOT NULL,
+                status VARCHAR(50) DEFAULT 'free',
+                doctor_id INT,
+                FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE CASCADE
+            )
+        `);
+
+    // Reactivate foreign key checks
+    await connection.query("SET FOREIGN_KEY_CHECKS = 1");
+    console.log("✅ Database structure created successfully.");
+
+    // --- 2. INSERT DATA (DML) ---
+    // CLINICS
+    console.log("🏥 Inserting Clinics...");
     await connection.query(`
             INSERT INTO clinics (id, name, address, city, lat, lng) VALUES 
             (1, 'Centro Salute Trento', 'Via S. Pietro 12', 'Trento', 46.0697, 11.1211),
             (2, 'Poliambulatorio Povo', 'Via della Salita 5', 'Povo', 46.0664, 11.1533),
             (3, 'Studio Rovereto Nord', 'Corso Rosmini 4', 'Rovereto', 45.8906, 11.0401),
             (4, 'Medical Center Milan', 'Piazza Duomo 1', 'Milano', 45.4642, 9.1900),
-            
             (5, 'Centro Medico Alto Garda', 'Via Capitelli 18', 'Arco', 45.9178, 10.8872),
             (6, 'Ambulatorio Rotaliana', 'Corso del Popolo 33', 'Mezzolombardo', 46.2148, 11.0955),
             (7, 'Poliambulatorio Valsugana', 'Viale Venezia 4', 'Pergine Valsugana', 46.0619, 11.2369),
             (8, 'Dolomiti Medical Center', 'Via Dossi 2', 'Cavalese', 46.2911, 11.4594),
-
             (9, 'BOMA Poliambulatori', 'Viale Druso 41', 'Bolzano', 46.4952, 11.3343),
             (10, 'Martinsbrunn ParkClinic', 'Via Laurino 70', 'Merano', 46.6821, 11.1458),
             (11, 'Centro Medico Brunico', 'Via Teodone 15', 'Brunico', 46.7984, 11.9432),
             (12, 'Ambulatorio Bressanone', 'Via Ponte Aquila 7', 'Bressanone', 46.7155, 11.6567)
         `);
 
-    // DOCTORS (Inserting IDs manually!)
-    console.log("👨‍⚕️ Inserting Doctors (with forced IDs)...");
-    // Note: Added 'id' in the insert to ensure the slot loop works
+    // DOCTORS
+    console.log("👨‍⚕️ Inserting Doctors...");
     await connection.query(`
             INSERT INTO doctors (id, name, surname, clinic_id) VALUES 
-            (1, 'Mario', 'Rossi', 1),
-            (2, 'Laura', 'Bianchi', 1),
+            (1, 'Mario', 'Rossi', 1), (2, 'Laura', 'Bianchi', 1),
             (3, 'Paolo', 'Verdi', 2),
             (4, 'Giulia', 'Neri', 3),
             (5, 'Marco', 'Gialli', 4),
-
-            (6, 'Roberto', 'Costa', 5),
-            (7, 'Elena', 'Rizzo', 5),
-            (8, 'Anna', 'Ferrari', 6),
-            (9, 'Luigi', 'Esposito', 6),
-            (10, 'Sofia', 'Romano', 6),
-            (11, 'Giorgio', 'Colombo', 7),
-            (12, 'Martina', 'Ricci', 7),
-            (13, 'Alessandro', 'Marino', 8),
-            (14, 'Chiara', 'Greco', 8),
-            (15, 'Davide', 'Bruno', 8),
-
-            (16, 'Manuela', 'Busato', 9),
-            (17, 'Luca', 'Chirizzi', 9),
-            (18, 'Sara', 'Bertagnolli', 9),
-            (19, 'Relja', 'Stankovic', 10),
-            (20, 'Sara', 'Auer', 10),
-            (21, 'Christine', 'Arquin', 10),
-            (22, 'Andreas', 'Felder', 11),
-            (23, 'Michaela', 'Jesacher', 11),
-            (24, 'Simon', 'Seehauser', 12),
-            (25, 'Marina', 'Patic', 12)
+            (6, 'Roberto', 'Costa', 5), (7, 'Elena', 'Rizzo', 5),
+            (8, 'Anna', 'Ferrari', 6), (9, 'Luigi', 'Esposito', 6), (10, 'Sofia', 'Romano', 6),
+            (11, 'Giorgio', 'Colombo', 7), (12, 'Martina', 'Ricci', 7),
+            (13, 'Alessandro', 'Marino', 8), (14, 'Chiara', 'Greco', 8), (15, 'Davide', 'Bruno', 8),
+            (16, 'Manuela', 'Busato', 9), (17, 'Luca', 'Chirizzi', 9), (18, 'Sara', 'Bertagnolli', 9),
+            (19, 'Relja', 'Stankovic', 10), (20, 'Sara', 'Auer', 10), (21, 'Christine', 'Arquin', 10),
+            (22, 'Andreas', 'Felder', 11), (23, 'Michaela', 'Jesacher', 11),
+            (24, 'Simon', 'Seehauser', 12), (25, 'Marina', 'Patic', 12)
         `);
 
-    // SLOT GENERATION
+    // SLOT GENERATOR
     console.log("📅 Generating future appointments...");
-
-    // Now we are SURE that doctor IDs go from 1 to 25 because we wrote them ourselves
     const doctorsCount = 25;
     const slots = [];
     const today = new Date();
@@ -90,8 +114,6 @@ async function seed() {
     for (let i = 0; i < 30; i++) {
       const currentDate = new Date(today);
       currentDate.setDate(today.getDate() + i);
-      const dayOfWeek = currentDate.getDay();
-      if (dayOfWeek === 0 || dayOfWeek === 6) continue;
 
       const dateStr = currentDate.toISOString().split("T")[0];
 
@@ -116,9 +138,10 @@ async function seed() {
       console.log(`✅ Inserted ${slots.length} slots.`);
     }
 
-    console.log("🎉 DB successfully regenerated! No Foreign Key errors.");
+    console.log("🎉 ALL DONE SUCCESSFULLY!");
   } catch (error) {
-    console.error("❌ ERROR:", error.message);
+    console.error("❌ CRITICAL ERROR:", error.message);
+    process.exit(1);
   } finally {
     if (connection) await connection.end();
   }
