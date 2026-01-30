@@ -1,64 +1,62 @@
 @echo off
-TITLE Medical App Launcher
+set BACKEND_DIR=medical_backend
+set FRONTEND_DIR=medical_frontend
 
-echo ==========================================
-echo    ENVIRONMENT CHECK AND PROJECT LAUNCH
-echo ==========================================
+echo === MEDICAL APP LAUNCHER ===
+cd /d %~dp0
 
-:: 1. CHECK NODE
-node -v >nul 2>&1
-IF %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Node.js is not installed!
-    pause
-    exit
-)
-echo [OK] Node.js found.
+:: ---------------------------------------------------------
+:: 1. BACKEND
+:: ---------------------------------------------------------
+echo 📂 Looking for backend folder: %BACKEND_DIR%...
 
-:: 2. CHECK DOCKER
-docker -v >nul 2>&1
-IF %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Docker is not installed or not in PATH!
-    pause
-    exit
-)
-echo [OK] Docker found.
-
-echo.
-echo ------------------------------------------
-echo 1/4 STARTING DOCKER DATABASE...
-echo ------------------------------------------
-docker-compose up -d
-
-echo.
-echo [WAIT] Waiting 15 seconds for MySQL to be ready...
-timeout /t 15 /nobreak >nul
-
-echo.
-echo ------------------------------------------
-echo 2/4 POPULATING DATABASE (SEED)...
-echo ------------------------------------------
-cd backend
-call node src/seed.js
-IF %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Seeding failed. Check the logs above.
-    pause
-    exit
+if not exist "%BACKEND_DIR%" (
+    echo [ERROR] Backend folder not found!
+    exit /b 1
 )
 
-echo.
-echo ------------------------------------------
-echo 3/4 STARTING BACKEND SERVER...
-echo ------------------------------------------
-:: Start the server in a new minimized or separate window
-start "Medical Backend" /B node src/server.js
-echo [OK] Server started in the background.
+cd %BACKEND_DIR%
 
-echo.
-echo ------------------------------------------
-echo 4/4 STARTING FRONTEND QUASAR...
-echo ------------------------------------------
-cd ..\frontend
-echo The app will open shortly in the browser...
-call quasar dev
+if not exist node_modules (
+    echo 📦 Missing dependencies. Running npm install...
+    npm install
+)
 
-pause
+echo 1/4 Starting Docker Compose...
+if exist docker-compose.yml (
+    docker-compose up -d
+) else (
+    echo [ERROR] docker-compose.yml not found!
+    exit /b 1
+)
+
+echo ⏳ Waiting for Database (10s)...
+timeout /t 10 >nul
+
+echo 2/4 Populating Database...
+node src\seed.js
+
+echo 3/4 Starting Server...
+start "Backend Server" node src\server.js
+
+:: ---------------------------------------------------------
+:: 2. FRONTEND
+:: ---------------------------------------------------------
+cd ..
+
+echo 📂 Looking for frontend folder: %FRONTEND_DIR%...
+
+if not exist "%FRONTEND_DIR%" (
+    echo [ERROR] Frontend folder not found!
+    exit /b 1
+)
+
+cd %FRONTEND_DIR%
+
+if not exist node_modules (
+    echo 📦 Missing frontend dependencies. Running npm install...
+    npm install
+)
+
+echo 4/4 Starting Quasar...
+quasar dev
