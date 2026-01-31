@@ -231,8 +231,9 @@ async function sendOTP() {
   }
 
   loading.value = true
+
   try {
-    const res = await api.post('http://127.0.0.1:3000/api/otp/send', {
+    const res = await api.post('/api/otp/send', {
       email: email.value,
     })
 
@@ -256,7 +257,7 @@ async function sendOTP() {
 async function verifyOTP() {
   loading.value = true
   try {
-    const res = await api.post('http://127.0.0.1:3000/api/otp/verify', {
+    const res = await api.post('/api/otp/verify', {
       email: email.value, // Using email here
       code: otpInput.value,
     })
@@ -279,7 +280,7 @@ async function verifyOTP() {
 async function finalizeBooking() {
   loading.value = true
   try {
-    const response = await api.post('http://127.0.0.1:3000/api/book', {
+    const response = await api.post('/api/book', {
       slot_id: selectedAppointment.value.id,
       user_email: email.value, // or cf.value if you use that as email
     })

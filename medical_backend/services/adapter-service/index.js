@@ -1,3 +1,4 @@
+//Index file for Adapter Service: Geocoding, Reverse Geocoding, Autocomplete, Email Sending
 const express = require("express");
 const axios = require("axios");
 const nodemailer = require("nodemailer");

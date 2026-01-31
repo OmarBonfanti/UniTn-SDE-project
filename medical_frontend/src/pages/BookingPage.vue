@@ -268,12 +268,19 @@ async function searchDoctors() {
 
   try {
     // Send ALL data to the backend
-    const response = await api.post('http://127.0.0.1:3000/api/search', {
-      address: addressText.value,
-      radius: km.value,
-      dateStart: dateFrom.value,
-      dateEnd: dateTo.value,
-    })
+    const response = await api.post(
+      '/api/search',
+      {
+        address: addressText.value,
+        radius: km.value,
+        dateStart: dateFrom.value,
+        dateEnd: dateTo.value,
+      },
+      {
+        // Custom header for API key
+        headers: { 'x-api-key': 'medical_exam_2026' },
+      },
+    )
 
     if (response.data.success) {
       // SAVE RESULTS ("arrayForMap")

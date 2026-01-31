@@ -97,7 +97,7 @@ function buildTree(forceShowAll = false) {
   const practiceGroups = {}
 
   FilteredSlots.forEach((slot) => {
-    const practiceName = slot.name || 'Medical Practice'
+    const practiceName = slot.clinic_name || 'Medical Practice'
     if (!practiceGroups[practiceName]) practiceGroups[practiceName] = []
     practiceGroups[practiceName].push(slot)
   })

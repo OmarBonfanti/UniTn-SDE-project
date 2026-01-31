@@ -1,3 +1,4 @@
+//Index file for Process Service: API Gateway handling requests and routing
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
@@ -12,6 +13,24 @@ const DATA_URL = "http://data-service:3001";
 const ADAPTER_URL = "http://adapter-service:3002";
 const BUSINESS_URL = "http://business-service:3003";
 
+// --- 🔒 Key security ---
+// This middleware checks that the caller has the correct key
+const authMiddleware = (req, res, next) => {
+  const clientKey = req.headers["x-api-key"];
+  const SECRET_KEY = "medical_exam_2026"; // Must be the same as the Frontend
+
+  // Allow OPTIONS requests (preflight CORS) or those with the correct key
+  if (req.method === "OPTIONS" || clientKey === SECRET_KEY) {
+    next();
+  } else {
+    console.warn(`⛔ Access denied from IP: ${req.ip}`);
+    res
+      .status(401)
+      .json({ error: "Unauthorized: Missing or incorrect API key" });
+  }
+};
+// -----------------------------
+
 // HELPER: Date formatter
 const toSqlDate = (str) => {
   if (!str) return new Date().toISOString().slice(0, 19).replace("T", " ");
@@ -22,7 +41,8 @@ const toSqlDate = (str) => {
   return `${year}-${month}-${day} ${timePart}:00`;
 };
 
-// AUTOCOMPLETE
+// Public Routes (No Auth)
+//  Autocomplete and Reverse open to avoid slowing down the UI while typing
 app.get("/api/autocomplete", async (req, res) => {
   try {
     const query = req.query.text;
@@ -48,13 +68,16 @@ app.get("/api/reverse", async (req, res) => {
   }
 });
 
+// --- PROTECTED ROUTES (With Auth) ---
+// We apply the lock to everything below
+app.use(authMiddleware);
+
 // COMPLEX SEARCH
 app.post("/api/search", async (req, res) => {
   try {
     const { address, radius, dateStart, dateEnd } = req.body;
     console.log("🚦 PROCESS: Search request...");
 
-    // A. Coordinates
     let userLoc = { lat: 46.0697, lng: 11.1211 };
     if (address) {
       try {
@@ -67,14 +90,15 @@ app.post("/api/search", async (req, res) => {
       }
     }
 
-    // B. Slots from DB
     const sqlStart = toSqlDate(dateStart);
     const sqlEnd = toSqlDate(dateEnd);
+
+    // Data Service
     const dataRes = await axios.get(`${DATA_URL}/slots`, {
       params: { start: sqlStart, end: sqlEnd },
     });
 
-    // C. Distance Filter
+    // Business Service
     const businessRes = await axios.post(`${BUSINESS_URL}/filter`, {
       slots: dataRes.data,
       userLat: userLoc.lat,
@@ -97,34 +121,32 @@ app.post("/api/search", async (req, res) => {
 app.post("/api/otp/send", async (req, res) => {
   try {
     const { email } = req.body;
-
-    // A. Generate Code (Business Service)
     const otpRes = await axios.post(`${BUSINESS_URL}/otp/generate`);
     const code = otpRes.data.code;
 
-    // B. Send Email (Adapter Service)
-    // Note: Make sure the email is valid or use a fake one
     try {
       await axios.post(`${ADAPTER_URL}/email/send`, {
         to: email,
-        subject: "Your OTP Code",
-        text: `Your code is: ${code}`,
-        html: `<h1>Your code is: ${code}</h1>`,
+        subject: "OTP Code for Your Booking",
+        text: `Your OTP code is: ${code}`,
+        html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 5px;">
+                    <h2 style="color: #333;">Confirm Your Booking</h2>
+                    <p>Use the following code to complete the process:</p>
+                    <h1 style="color: #d32f2f; font-size: 32px; letter-spacing: 2px;">${code}</h1>
+                    <p style="color: #777; font-size: 12px;">If you did not request this code, please ignore this email.</p>
+                </div>
+            `,
       });
     } catch (e) {
-      console.warn(
-        "⚠️ Unable to send real email (Adapter Error). Continuing anyway for testing.",
-      );
+      console.warn("⚠️ Email error (fake continue).");
     }
 
-    // C. Save in memory (Simplified for the project)
     global.otpStore = global.otpStore || {};
     global.otpStore[email] = code;
-    console.log(`🔑 OTP generated for ${email}: ${code}`); // Printing so you can copy it for testing
-
+    console.log(`🔑 OTP generated for ${email}: ${code}`);
     res.json({ success: true });
   } catch (error) {
-    console.error("Gateway OTP Error:", error.message);
     res.status(500).json({ success: false });
   }
 });
@@ -133,34 +155,105 @@ app.post("/api/otp/send", async (req, res) => {
 app.post("/api/otp/verify", (req, res) => {
   const { email, code } = req.body;
   const storedCode = global.otpStore ? global.otpStore[email] : null;
-
-  // Accept the real code OR the magic code "123456" for quick tests
-  if (code === "123456" || code === storedCode) {
-    res.json({ success: true });
-  } else {
-    res.json({ success: false });
-  }
+  if (code === "123456" || code === storedCode) res.json({ success: true });
+  else res.json({ success: false });
 });
 
-// 6. BOOKING
+// BOOKING
 app.post("/api/book", async (req, res) => {
   try {
     const { slot_id, user_email } = req.body;
 
+    // Booking the slot (Data Service)
     const bookRes = await axios.patch(`${DATA_URL}/slots/${slot_id}/book`);
     if (!bookRes.data.success)
       return res.json({ success: false, message: "Slot occupied" });
 
-    // Confirmation Email (Adapter)
+    // RETRIEVE DETAILS FOR EMAIL (The missing step!)
+    // We need to know Date, Time, Doctor, and Clinic to include in the email
+    let info = {};
+    let dateReadable = "";
+    let timeReadable = "";
+
     try {
-      await axios.post(`${ADAPTER_URL}/email/send`, {
-        to: user_email,
-        subject: "Booking Confirmed ✅",
-        text: "We are waiting for you!",
-        html: "<h1>Confirmed!</h1>",
+      const detailRes = await axios.get(`${DATA_URL}/slots/${slot_id}`);
+      info = detailRes.data;
+
+      // Format the date in a readable way (e.g., 31/01/2026)
+      const dateObj = new Date(info.date_start);
+      dateReadable = dateObj.toLocaleDateString("it-IT");
+      timeReadable = dateObj.toLocaleTimeString("it-IT", {
+        hour: "2-digit",
+        minute: "2-digit",
       });
     } catch (e) {
-      console.warn("No email sent");
+      console.error("Error retrieving slot details:", e.message);
+      // If retrieving details fails, use default values to avoid breaking the email sending
+      info = {
+        doctor: "Doctor",
+        clinic: "Clinic",
+        address: "Address not available",
+      };
+      dateReadable = "Unknown date";
+    }
+
+    // SEND CONFIRMATION EMAIL (Adapter Service)
+    try {
+      console.log(`📧 Sending email to ${user_email}...`);
+
+      await axios.post(`${ADAPTER_URL}/email/send`, {
+        to: user_email,
+        subject: `Appointment Confirmation: ${dateReadable} ✅`,
+        html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+                    .header { background-color: #1976D2; color: white; padding: 20px; text-align: center; }
+                    .content { padding: 20px; }
+                    .details-box { background-color: #f9f9f9; border-left: 4px solid #1976D2; padding: 15px; margin: 20px 0; }
+                    .detail-item { margin-bottom: 10px; }
+                    .label { font-weight: bold; color: #555; }
+                    .footer { background-color: #f1f1f1; padding: 15px; text-align: center; font-size: 12px; color: #777; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>Booking Confirmed</h1>
+                    </div>
+                    <div class="content">
+                        <p>Dear User,</p>
+                        <p>We are pleased to confirm your appointment. Here is a summary of the details:</p>
+                        
+                        <div class="details-box">
+                            <div class="detail-item"><span class="label">📅 Date:</span> ${dateReadable}</div>
+                            <div class="detail-item"><span class="label">⏰ Time:</span> ${timeReadable}</div>
+                            <div class="detail-item"><span class="label">👨‍⚕️ Doctor:</span> ${info.doctor || info.doctor_name}</div>
+                            <div class="detail-item"><span class="label">🏥 Clinic:</span> ${info.clinic || info.clinic_name}</div>
+                            <div class="detail-item"><span class="label">📍 Address:</span> ${info.address}, ${info.city || ""}</div>
+                        </div>
+
+                        <p>Please arrive 10 minutes early.</p>
+                        <p>Best regards,<br>The Booking Team</p>
+                    </div>
+                    <div class="footer">
+                        Automated email generated by the Medical App system.<br>
+                        Do not reply to this email.
+                    </div>
+                </div>
+            </body>
+            </html>
+            `,
+      });
+      console.log("✅ Email sent successfully!");
+    } catch (e) {
+      console.warn(
+        "⚠️ Failed to send email (Adapter Error or SMTP):",
+        e.message,
+      );
     }
 
     res.json({ success: true });
