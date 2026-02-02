@@ -117,6 +117,21 @@ app.post("/api/search", async (req, res) => {
   }
 });
 
+// VALIDATE CODICE FISCALE
+app.get("/api/validate-cf", async (req, res) => {
+  try {
+    const { cf } = req.query;
+    // The Gateway calls the Adapter
+    const response = await axios.get(`${ADAPTER_URL}/validate-cf`, {
+      params: { cf },
+    });
+
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ valid: false });
+  }
+});
+
 // SEND OTP
 app.post("/api/otp/send", async (req, res) => {
   try {

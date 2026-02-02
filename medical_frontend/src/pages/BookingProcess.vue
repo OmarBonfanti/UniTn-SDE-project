@@ -198,26 +198,25 @@ async function checkPersonalData() {
   loading.value = true
 
   try {
-    // Workers Cloudflare URL:
-    const url = `https://medical-check-cf.omarbonf.workers.dev?cf=${cf.value}`
+    const response = await api.get('/api/validate-cf', {
+      params: { cf: cf.value },
+    })
 
-    const response = await fetch(url)
-    const data = await response.json()
+    const data = response.data
 
     if (data.valid) {
       $q.notify({ type: 'positive', message: 'Valid Tax Code!' })
-      // Simulate a small delay for UX
       setTimeout(() => {
         loading.value = false
-        step.value = 3 // Move to the next step
+        step.value = 3
       }, 500)
     } else {
-      $q.notify({ type: 'negative', message: 'Invalid or incorrect Tax Code' })
+      $q.notify({ type: 'negative', message: 'Invalid Tax Code' })
       loading.value = false
     }
   } catch (e) {
     console.error(e)
-    $q.notify({ type: 'negative', message: 'Error connecting to external service' })
+    $q.notify({ type: 'negative', message: 'Server Error' })
     loading.value = false
   }
 }

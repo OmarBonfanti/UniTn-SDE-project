@@ -83,7 +83,23 @@ app.get("/autocomplete", async (req, res) => {
   }
 });
 
-// 4. SEND EMAIL
+// 4. VALIDATE CODICE FISCALE
+app.get("/validate-cf", async (req, res) => {
+  try {
+    const { cf } = req.query;
+    // The Adapter speak with an external service to validate the codice fiscale
+    const url = `https://medical-check-cf.omarbonf.workers.dev?cf=${cf}`;
+
+    const response = await axios.get(url);
+    res.json(response.data); // Return { valid: true/false }
+  } catch (error) {
+    console.error("CF Check Error:", error.message);
+    // If the external service fails, return valid: false for safety
+    res.json({ valid: false, error: "External service error" });
+  }
+});
+
+// 5. SEND EMAIL
 app.post("/email/send", async (req, res) => {
   try {
     const { to, subject, text, html } = req.body;
