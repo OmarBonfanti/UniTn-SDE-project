@@ -54,13 +54,12 @@ It handles Docker builds, database initialization, seeding, and frontend startup
 
 1. Clone the repository:
 
-git clone https://github.com/OmarBonfanti/UniTn-SDE-project.git
-
-cd UniTn-SDE-project
+   git clone https://github.com/OmarBonfanti/UniTn-SDE-project.git
+   cd UniTn-SDE-project
 
 2. Launch the full system:
 
-node start.js
+   node start.js
 
 The script performs the following steps:
 
@@ -79,29 +78,23 @@ If you prefer running components independently:
 
 1. Backend (Docker)
 
----
-
-cd medical_backend
-docker compose up -d --build
+   cd medical_backend
+   docker compose up -d --build
 
 ---
 
 2. Database Seeding
 
----
-
-After containers are running, populate the database with doctors and clinics:
-docker exec -it medical_backend-process-service-1 node seed.js
+   After containers are running, populate the database with doctors and clinics:
+   docker exec -it medical_backend-process-service-1 node seed.js
 
 ---
 
 3. Frontend (Quasar)
 
----
-
-cd medical_frontend
-npm install
-npm run dev
+   cd medical_frontend
+   npm install
+   npm run dev
 
 ---
 
