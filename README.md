@@ -1,9 +1,7 @@
 UniTn-SDE-Project
 Project Exam – Service Design and Engineering
 
-============================================
-🏥 MEDICAL BOOKING SYSTEM – SDE PROJECT 2026
-============================================
+# 🏥 MEDICAL BOOKING SYSTEM – SDE PROJECT 2026
 
 A distributed medical appointment booking system based on a microservices architecture.
 The system is built using Node.js, Docker, MySQL, and the Quasar Framework, and follows an orchestration pattern.
