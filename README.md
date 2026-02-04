@@ -55,6 +55,7 @@ It handles Docker builds, database initialization, seeding, and frontend startup
 1. Clone the repository:
 
    git clone https://github.com/OmarBonfanti/UniTn-SDE-project.git
+
    cd UniTn-SDE-project
 
 2. Launch the full system:
@@ -79,16 +80,13 @@ If you prefer running components independently:
 1. Backend (Docker)
 
    cd medical_backend
-   docker compose up -d --build
 
----
+   docker compose up -d --build
 
 2. Database Seeding
 
    After containers are running, populate the database with doctors and clinics:
    docker exec -it medical_backend-process-service-1 node seed.js
-
----
 
 3. Frontend (Quasar)
 
@@ -102,9 +100,7 @@ If you prefer running components independently:
 
 All Gateway endpoints are protected using an API Key middleware.
 
-Required HTTP Header:
-
-x-api-key: medical_exam_2026
+Required HTTP Header: x-api-key: medical_exam_2026
 
 Main endpoints:
 
