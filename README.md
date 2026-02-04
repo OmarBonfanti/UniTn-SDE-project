@@ -8,8 +8,6 @@ Project Exam – Service Design and Engineering
 A distributed medical appointment booking system based on a microservices architecture.
 The system is built using Node.js, Docker, MySQL, and the Quasar Framework, and follows an orchestration pattern.
 
----
-
 ## 🏗️ SYSTEM ARCHITECTURE
 
 The architecture follows a centralized orchestration model where the **Process Service** acts as a Gateway and coordinator between specialized services.
