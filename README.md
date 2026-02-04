@@ -38,8 +38,6 @@ Services overview:
 
 ## 🚀 GETTING STARTED
 
----
-
 ## Prerequisites
 
 - Docker
