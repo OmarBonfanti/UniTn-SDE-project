@@ -86,6 +86,7 @@ If you prefer running components independently:
 2. Database Seeding
 
    After containers are running, populate the database with doctors and clinics:
+
    docker exec -it medical_backend-process-service-1 node seed.js
 
 3. Frontend (Quasar)
