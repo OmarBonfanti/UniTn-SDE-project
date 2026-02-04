@@ -61,6 +61,7 @@ It handles Docker builds, database initialization, seeding, and frontend startup
 1. Clone the repository:
 
 git clone https://github.com/OmarBonfanti/UniTn-SDE-project.git
+
 cd UniTn-SDE-project
 
 2. Launch the full system:
