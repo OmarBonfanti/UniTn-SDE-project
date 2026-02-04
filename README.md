@@ -101,7 +101,8 @@ If you prefer running components independently:
 
 All Gateway endpoints are protected using an API Key middleware.
 
-Required HTTP Header: x-api-key: medical_exam_2026
+Required HTTP Header:
+x-api-key: medical_exam_2026
 
 Main endpoints:
 
