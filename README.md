@@ -124,7 +124,14 @@ Main endpoints:
 
 To inspect orchestration and service interactions:
 
-docker compose -f medical_backend/docker-compose.yml logs -f process-service
+In medical_backend use:
+
+docker compose logs -f
+
+For Fast Restart  
+Used during development or for demonstrations once the database is already populated
+
+node restart.js
 
 ---
 

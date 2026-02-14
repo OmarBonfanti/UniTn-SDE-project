@@ -1,4 +1,4 @@
-//Index file for Adapter Service: Geocoding, Reverse Geocoding, Autocomplete, Email Sending
+// Index file for Adapter Service: Geocoding, Reverse Geocoding, Autocomplete, Email Sending
 const express = require("express");
 const axios = require("axios");
 const nodemailer = require("nodemailer");
@@ -23,18 +23,25 @@ app.get("/geocode", async (req, res) => {
     const { address } = req.query;
     if (!address) return res.json(null);
 
+    // LOG: Request in geo-coding
+    console.log(`🌍 Geocoding request received for: "${address}"`);
+
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
     const response = await axios.get(url, {
       headers: { "User-Agent": "MedicalApp/1.0" },
     });
 
-    res.json(
-      response.data.length > 0
-        ? { lat: response.data[0].lat, lng: response.data[0].lon }
-        : null,
-    );
+    if (response.data.length > 0) {
+      console.log(
+        `✅ Coordinates found: Lat ${response.data[0].lat}, Lng ${response.data[0].lon}`,
+      );
+      res.json({ lat: response.data[0].lat, lng: response.data[0].lon });
+    } else {
+      console.log(`⚠️ No coordinates found for address.`);
+      res.json(null);
+    }
   } catch (e) {
-    console.error("Geocoding Error:", e.message);
+    console.error("❌ Geocoding Error:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -44,15 +51,19 @@ app.get("/reverse", async (req, res) => {
   try {
     const { lat, lng } = req.query;
 
+    // LOG: Request reverse geo-coding
+    console.log(`📍 Reverse Geocoding request: [${lat}, ${lng}]`);
+
     const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
     const response = await axios.get(url, {
       headers: { "User-Agent": "MedicalApp/1.0" },
     });
 
     const address = response.data.display_name || "Unknown address";
+    console.log(`🏠 Address resolved: "${address.substring(0, 40)}..."`); // Cut for clear logs
     res.json({ address });
   } catch (e) {
-    console.error("Reverse Geo Error:", e.message);
+    console.error("❌ Reverse Geo Error:", e.message);
     res.status(500).json({ error: "Reverse Geo Error" });
   }
 });
@@ -62,6 +73,9 @@ app.get("/autocomplete", async (req, res) => {
   try {
     const query = req.query.text;
     if (!query || query.length < 3) return res.json([]);
+
+    // LOG: Searching autocomplete suggestions
+    console.log(`⌨️  Autocomplete External API call for: "${query}"`);
 
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=it`;
     const response = await axios.get(url, {
@@ -75,10 +89,14 @@ app.get("/autocomplete", async (req, res) => {
         .join(", ");
     });
 
-    // Remove duplicates
-    res.json([...new Set(suggestions)]);
+    const uniqueSuggestions = [...new Set(suggestions)];
+    console.log(
+      `✨ Returned ${uniqueSuggestions.length} suggestions to Gateway.`,
+    );
+
+    res.json(uniqueSuggestions);
   } catch (e) {
-    console.error("Autocomplete Error:", e.message);
+    console.error("❌ Autocomplete Error:", e.message);
     res.json([]);
   }
 });
@@ -87,14 +105,22 @@ app.get("/autocomplete", async (req, res) => {
 app.get("/validate-cf", async (req, res) => {
   try {
     const { cf } = req.query;
+    console.log(`🆔 Validating Fiscal Code via Cloudflare: ${cf}`);
+
     // The Adapter speak with an external service to validate the codice fiscale
     const url = `https://medical-check-cf.omarbonf.workers.dev?cf=${cf}`;
 
     const response = await axios.get(url);
+
+    if (response.data.valid) {
+      console.log(`✅ CF Validated Successfully`);
+    } else {
+      console.log(`⚠️ CF Invalid: ${response.data.error || "Unknown error"}`);
+    }
+
     res.json(response.data); // Return { valid: true/false }
   } catch (error) {
-    console.error("CF Check Error:", error.message);
-    // If the external service fails, return valid: false for safety
+    console.error("❌ CF Check Error:", error.message);
     res.json({ valid: false, error: "External service error" });
   }
 });
@@ -103,7 +129,10 @@ app.get("/validate-cf", async (req, res) => {
 app.post("/email/send", async (req, res) => {
   try {
     const { to, subject, text, html } = req.body;
-    console.log(`📧 Attempting to send email to ${to}...`);
+
+    // LOG: Email sending request
+    console.log(`📨 SMTP: Sending email to [${to}] | Subject: "${subject}"`);
+
     await transporter.sendMail({
       from: "Medical App",
       to,
@@ -112,14 +141,16 @@ app.post("/email/send", async (req, res) => {
       html,
     });
 
-    console.log("✅ Mail sent!");
+    console.log(`📤 Email sent successfully to ${to}!`);
     res.json({ success: true });
   } catch (e) {
-    console.error("❌ Mail Error:", e.message);
-    // Do not crash if mail fails, respond with error
+    console.error("❌ Mail Failed:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
 
-// START SERVER ON PORT 3002
-app.listen(3002, () => console.log("🌍 Adapter Service running on 3002"));
+// START SERVER ON PORT 3002 (Standard Adapter Port)
+const PORT = 3002;
+app.listen(PORT, () =>
+  console.log(`🌍 Adapter Service running on port ${PORT}`),
+);

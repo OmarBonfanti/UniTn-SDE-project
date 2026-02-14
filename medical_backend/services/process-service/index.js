@@ -1,4 +1,4 @@
-//Index file for Process Service: API Gateway handling requests and routing
+// Index file for Process Service: API Gateway handling requests and routing
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
@@ -8,18 +8,16 @@ app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// Config URLs
+// --- ⚙️ CONFIG URLs (Corrected Ports) ---
 const DATA_URL = "http://data-service:3001";
-const ADAPTER_URL = "http://adapter-service:3002";
-const BUSINESS_URL = "http://business-service:3003";
+const ADAPTER_URL = "http://adapter-service:3002"; // External APIs & Email
+const BUSINESS_URL = "http://business-service:3003"; // Business Logic & Math
 
 // --- 🔒 Key security ---
-// This middleware checks that the caller has the correct key
 const authMiddleware = (req, res, next) => {
   const clientKey = req.headers["x-api-key"];
-  const SECRET_KEY = "medical_exam_2026"; // Must be the same as the Frontend
+  const SECRET_KEY = "medical_exam_2026";
 
-  // Allow OPTIONS requests (preflight CORS) or those with the correct key
   if (req.method === "OPTIONS" || clientKey === SECRET_KEY) {
     next();
   } else {
@@ -29,7 +27,6 @@ const authMiddleware = (req, res, next) => {
       .json({ error: "Unauthorized: Missing or incorrect API key" });
   }
 };
-// -----------------------------
 
 // HELPER: Date formatter
 const toSqlDate = (str) => {
@@ -41,11 +38,12 @@ const toSqlDate = (str) => {
   return `${year}-${month}-${day} ${timePart}:00`;
 };
 
-// Public Routes (No Auth)
-//  Autocomplete and Reverse open to avoid slowing down the UI while typing
+// --- PUBLIC ROUTES ---
+
 app.get("/api/autocomplete", async (req, res) => {
   try {
     const query = req.query.text;
+
     const response = await axios.get(`${ADAPTER_URL}/autocomplete`, {
       params: { text: query },
     });
@@ -59,6 +57,7 @@ app.get("/api/autocomplete", async (req, res) => {
 app.get("/api/reverse", async (req, res) => {
   try {
     const { lat, lng } = req.query;
+    console.log(`📍 Routing Reverse Geo request to Adapter...`);
     const response = await axios.get(`${ADAPTER_URL}/reverse`, {
       params: { lat, lng },
     });
@@ -72,39 +71,55 @@ app.get("/api/reverse", async (req, res) => {
 // We apply the lock to everything below
 app.use(authMiddleware);
 
-// COMPLEX SEARCH
+// COMPLEX SEARCH ORCHESTRATION
 app.post("/api/search", async (req, res) => {
   try {
     const { address, radius, dateStart, dateEnd } = req.body;
-    console.log("🚦 PROCESS: Search request...");
 
-    let userLoc = { lat: 46.0697, lng: 11.1211 };
+    console.log(`\n🚦 START ORCHESTRATION: Search Request`);
+    console.log(`📦 Params: Address="${address || "GPS"}", Radius=${radius}km`);
+
+    let userLoc = { lat: 46.0697, lng: 11.1211 }; // Default Trento
+
+    // STEP 1: CALL ADAPTER (Geocoding)
     if (address) {
       try {
+        console.log(`➡️  Calling ADAPTER SERVICE to geocode address...`);
         const geoRes = await axios.get(`${ADAPTER_URL}/geocode`, {
           params: { address },
         });
-        if (geoRes.data) userLoc = geoRes.data;
+        if (geoRes.data) {
+          userLoc = geoRes.data;
+          console.log(`⬅️  Adapter response: [${userLoc.lat}, ${userLoc.lng}]`);
+        }
       } catch (e) {
-        console.warn("Geo fallito, uso default");
+        console.warn("⚠️ Geo failed, using default location.");
       }
     }
 
     const sqlStart = toSqlDate(dateStart);
     const sqlEnd = toSqlDate(dateEnd);
 
-    // Data Service
+    // STEP 2: CALL DATA SERVICE (Get Slots)
+    console.log(`➡️  Calling DATA SERVICE for raw slots...`);
     const dataRes = await axios.get(`${DATA_URL}/slots`, {
       params: { start: sqlStart, end: sqlEnd },
     });
+    console.log(`⬅️  Data Service returned ${dataRes.data.length} raw slots.`);
 
-    // Business Service
+    // STEP 3: CALL BUSINESS SERVICE (Filter Logic)
+    console.log(`➡️  Calling BUSINESS SERVICE to apply logic...`);
     const businessRes = await axios.post(`${BUSINESS_URL}/filter`, {
       slots: dataRes.data,
       userLat: userLoc.lat,
       userLng: userLoc.lng,
       radius: radius,
     });
+    console.log(
+      `⬅️  Business Service returned ${businessRes.data.length} filtered slots.`,
+    );
+
+    console.log(`✅ ORCHESTRATION COMPLETE. Sending response to Client.\n`);
 
     res.json({
       success: true,
@@ -112,34 +127,38 @@ app.post("/api/search", async (req, res) => {
       results: businessRes.data,
     });
   } catch (error) {
-    console.error("❌ Gateway Search Error:", error.message);
+    console.error("❌ Error in Gateway:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// VALIDATE CODICE FISCALE
+// 2. VALIDATE CF
 app.get("/api/validate-cf", async (req, res) => {
   try {
     const { cf } = req.query;
-    // The Gateway calls the Adapter
+    console.log(`🆔 Orchestrating CF Validation via Adapter...`);
     const response = await axios.get(`${ADAPTER_URL}/validate-cf`, {
       params: { cf },
     });
-
     res.json(response.data);
   } catch (error) {
     res.status(500).json({ valid: false });
   }
 });
 
-// SEND OTP
+// 3. SEND OTP
 app.post("/api/otp/send", async (req, res) => {
   try {
     const { email } = req.body;
+    console.log(`🔐 OTP Request for ${email}`);
+
+    // Call Business for Math/Code Generation
     const otpRes = await axios.post(`${BUSINESS_URL}/otp/generate`);
     const code = otpRes.data.code;
 
+    // Call Adapter for Email
     try {
+      console.log(`➡️  Delegating Email sending to Adapter...`);
       await axios.post(`${ADAPTER_URL}/email/send`, {
         to: email,
         subject: "OTP Code for Your Booking",
@@ -154,19 +173,17 @@ app.post("/api/otp/send", async (req, res) => {
             `,
       });
     } catch (e) {
-      console.warn("⚠️ Email error (fake continue).");
+      console.warn("⚠️ Email error (continuing anyway).");
     }
 
     global.otpStore = global.otpStore || {};
     global.otpStore[email] = code;
-    console.log(`🔑 OTP generated for ${email}: ${code}`);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false });
   }
 });
 
-// VERIFY OTP
 app.post("/api/otp/verify", (req, res) => {
   const { email, code } = req.body;
   const storedCode = global.otpStore ? global.otpStore[email] : null;
@@ -174,16 +191,21 @@ app.post("/api/otp/verify", (req, res) => {
   else res.json({ success: false });
 });
 
-// BOOKING
+// 4. BOOKING TRANSACTION
 app.post("/api/book", async (req, res) => {
   try {
     const { slot_id, user_email } = req.body;
+    console.log(`\n📝 START BOOKING: Slot ${slot_id} for ${user_email}`);
 
-    // Booking the slot (Data Service)
+    // STEP 1: Lock Slot in DB
+    console.log(`➡️  Calling DATA SERVICE to lock slot...`);
     const bookRes = await axios.patch(`${DATA_URL}/slots/${slot_id}/book`);
-    if (!bookRes.data.success)
+    if (!bookRes.data.success) {
+      console.log(`⛔ Booking failed: Slot occupied.`);
       return res.json({ success: false, message: "Slot occupied" });
+    }
 
+    // STEP 2: Get Details
     // RETRIEVE DETAILS FOR EMAIL (The missing step!)
     // We need to know Date, Time, Doctor, and Clinic to include in the email
     let info = {};
@@ -210,12 +232,12 @@ app.post("/api/book", async (req, res) => {
         address: "Address not available",
       };
       dateReadable = "Unknown date";
+      timeReadable = "Unknown time";
     }
 
-    // SEND CONFIRMATION EMAIL (Adapter Service)
+    // STEP 3: Send Email via Adapter
     try {
-      console.log(`📧 Sending email to ${user_email}...`);
-
+      console.log(`➡️  Calling ADAPTER SERVICE to send confirmation email...`);
       await axios.post(`${ADAPTER_URL}/email/send`, {
         to: user_email,
         subject: `Appointment Confirmation: ${dateReadable} ✅`,
@@ -273,7 +295,7 @@ app.post("/api/book", async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error("Book Error:", error.message);
+    console.error("❌ Book Error:", error.message);
     res.status(500).json({ success: false });
   }
 });

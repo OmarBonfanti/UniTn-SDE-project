@@ -1,4 +1,4 @@
-//Index file for Data Service: Slot Searching and Booking
+// Index file for Data Service: Slot Searching and Booking
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
@@ -12,7 +12,7 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Configure DB
-const db = mysql.createPool({
+const db = mysql.createdb({
   host: process.env.DB_HOST || "db",
   user: process.env.DB_USER || "user",
   password: process.env.DB_PASSWORD || "password",
@@ -26,15 +26,17 @@ const db = mysql.createPool({
 db.getConnection((err, connection) => {
   if (err) console.error("❌ DB Connection Error:", err.code);
   else {
-    console.log("💾 DATA SERVICE: Connected to MySQL");
+    console.log("💾 MySQL Database Connected Successfully");
     connection.release();
   }
 });
 
-// 1. SEARCH SLOTS (Correct logic: Filter ONLY on date_start)
+// 1. SEARCH SLOTS
 app.get("/slots", (req, res) => {
-  // start and end are the interval chosen by the user (e.g. "I want visits from Feb 1 to Feb 10")
   const { start, end } = req.query;
+
+  // LOG: Querying slots with provided parameters
+  console.log(`🔍 Querying Slots between [${start}] and [${end}]...`);
 
   const query = `
         SELECT 
@@ -51,15 +53,17 @@ app.get("/slots", (req, res) => {
 
   db.query(query, [start, end], (err, results) => {
     if (err) {
-      console.error("Query Search Error:", err);
+      console.error("❌ Query Error:", err.message);
       return res.status(500).json({ error: err.message });
     }
 
-    // Optional: Calculate a fake end date (+30 min) for the frontend
-    // so the map or list don't break if they expect that field
+    // LOG: Query results count
+    console.log(`✅ Found ${results.length} available slots in DB.`);
+
+    // Calculate a fake end date (+30 min) for frontend compatibility
     const resultsWithEnd = results.map((slot) => {
       const startDate = new Date(slot.date_start);
-      const endDate = new Date(startDate.getTime() + 30 * 60000); // +30 minuti
+      const endDate = new Date(startDate.getTime() + 30 * 60000); // +30 mins
       return {
         ...slot,
         date_end: endDate.toISOString().slice(0, 19).replace("T", " "),
@@ -70,29 +74,47 @@ app.get("/slots", (req, res) => {
   });
 });
 
-// BOOK A SLOT
+// 2. BOOK A SLOT
 app.patch("/slots/:id/book", (req, res) => {
   const slotId = req.params.id;
+
+  // LOG: Booking attempt for slot
+  console.log(`📝 Attempting to book Slot ID: ${slotId}`);
 
   // Check availability
   db.query(
     "SELECT status FROM slots WHERE id = ?",
     [slotId],
     (err, results) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (results.length === 0)
+      if (err) {
+        console.error("❌ SQL Error checking status:", err);
+        return res.status(500).json({ error: err.message });
+      }
+
+      if (results.length === 0) {
+        console.log(`⚠️ Slot ${slotId} not found.`);
         return res
           .status(404)
           .json({ success: false, message: "Slot not found" });
-      if (results[0].status !== "free")
-        return res.json({ success: false, message: "Already booked" });
+      }
 
-      // Book the slot
+      if (results[0].status !== "free") {
+        console.log(
+          `⛔ Booking Failed: Slot ${slotId} is already ${results[0].status}`,
+        );
+        return res.json({ success: false, message: "Already booked" });
+      }
+
+      // Execute Booking Update
       db.query(
         "UPDATE slots SET status = 'booked' WHERE id = ?",
         [slotId],
-        (err, result) => {
-          if (err) return res.status(500).json({ error: err.message });
+        (updateErr, result) => {
+          if (updateErr) {
+            console.error("❌ Update Error:", updateErr);
+            return res.status(500).json({ error: updateErr.message });
+          }
+          console.log(`🎉 Slot ${slotId} successfully marked as BOOKED.`);
           res.json({ success: true });
         },
       );
@@ -100,9 +122,13 @@ app.patch("/slots/:id/book", (req, res) => {
   );
 });
 
-// 3. SLOT DETAILS (For emails)
+// 3. SLOT DETAILS (For email notifications)
 app.get("/slots/:id", (req, res) => {
   const slotId = req.params.id;
+
+  // LOG: Fetching details for mail notification
+  console.log(`ℹ️  Fetching details for Slot ID: ${slotId}`);
+
   const query = `
         SELECT s.date_start, c.name as clinic, c.address, d.name as doctor
         FROM slots s
@@ -112,10 +138,15 @@ app.get("/slots/:id", (req, res) => {
     `;
 
   db.query(query, [slotId], (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) {
+      console.error("❌ Detail Query Error:", err);
+      return res.status(500).json({ error: err.message });
+    }
     if (results.length === 0) return res.status(404).json({});
+
     res.json(results[0]);
   });
 });
 
-app.listen(3001, () => console.log("💾 Data Service running on 3001"));
+const PORT = 3001;
+app.listen(PORT, () => console.log(`💾 Data Service running on ${PORT}`));
