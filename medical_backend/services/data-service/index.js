@@ -12,7 +12,7 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Configure DB
-const db = mysql.createdb({
+const db = mysql.createPool({
   host: process.env.DB_HOST || "db",
   user: process.env.DB_USER || "user",
   password: process.env.DB_PASSWORD || "password",
